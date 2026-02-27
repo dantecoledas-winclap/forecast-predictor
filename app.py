@@ -298,24 +298,28 @@ def run_inference(file):
 
     base['dias_restantes'] = (pd.to_datetime(base.get('due_date', pd.NaT), errors='coerce') - hoy).dt.days if 'due_date' in base.columns else 0
 
-    # ── Normalize ────────────────────────────────────────────────────────────
-    for col in base.columns:
-        if col in normalization_stats.index:
-            mean = normalization_stats.loc[col, 'mean']
-            std = normalization_stats.loc[col, 'std']
-            if std != 0:
-                base[col] = (base[col] - mean) / std
+    # Saldo (feature del script original)
+    base['saldo'] = base['[D] Deal revenue (USD)'] - base['t-1'] - base['t-2'] - base['t-3'] - base['t-4']
 
-    # ── Inference ────────────────────────────────────────────────────────────
+    # Normalize
+    norm = normalization_stats.drop('Cierre', errors='ignore').copy()
+    norm.index = norm.index.fillna('')
+    cols_norm = norm.index.intersection(base.columns)
+    base[cols_norm] = (base[cols_norm] - norm.loc[cols_norm, 'mean']) / norm.loc[cols_norm, 'std']
+
+    # Inference
     expected = modelo.feature_names_in_
-    # Add missing columns as 0
     for col in expected:
         if col not in base.columns:
             base[col] = 0
     base = base[expected]
 
-    # Rellenar NaN restantes con 0 antes de inferir
-    base = base.fillna(0)
+    # Rellenar NaN con KNN Imputer (igual que el script original)
+    from sklearn.impute import KNNImputer
+    imputer = KNNImputer(n_neighbors=3)
+    base_imputada = imputer.fit_transform(base)
+    base = pd.DataFrame(base_imputada, index=base.index, columns=base.columns)
+    base = base[expected]
 
     predicciones = modelo.predict(base)
 
