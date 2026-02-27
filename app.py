@@ -314,6 +314,9 @@ def run_inference(file):
             base[col] = 0
     base = base[expected]
 
+    # Rellenar NaN restantes con 0 antes de inferir
+    base = base.fillna(0)
+
     predicciones = modelo.predict(base)
 
     media = normalization_stats.loc['Cierre', 'mean']
